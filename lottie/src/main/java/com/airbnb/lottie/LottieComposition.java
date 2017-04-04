@@ -33,18 +33,20 @@ public class LottieComposition {
   private final LongSparseArray<Layer> layerMap = new LongSparseArray<>();
   private final List<Layer> layers = new ArrayList<>();
   private final Rect bounds;
-  private final long startFrame;
   private final long endFrame;
   private final int frameRate;
   private final float dpScale;
+  private final long durationFrames;
+  private final long duration;
 
   private LottieComposition(
       Rect bounds, long startFrame, long endFrame, int frameRate, float dpScale) {
     this.bounds = bounds;
-    this.startFrame = startFrame;
     this.endFrame = endFrame;
     this.frameRate = frameRate;
     this.dpScale = dpScale;
+    this.durationFrames = endFrame - startFrame;
+    this.duration=(long) (durationFrames* 1000.0 /frameRate );;
   }
 
   Layer layerModelForId(long id) {
@@ -56,8 +58,7 @@ public class LottieComposition {
   }
 
   @SuppressWarnings("WeakerAccess") public long getDuration() {
-    long frameDuration = endFrame - startFrame;
-    return (long) (frameDuration / (float) frameRate * 1000);
+    return this.duration;
   }
 
   long getEndFrame() {
@@ -82,7 +83,7 @@ public class LottieComposition {
   }
 
   float getDurationFrames() {
-    return getDuration() * (float) frameRate / 1000f;
+    return durationFrames;
   }
 
 

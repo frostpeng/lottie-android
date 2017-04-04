@@ -13,6 +13,8 @@ class SolidLayer extends BaseLayer {
   private final RectF rect = new RectF();
   private final Paint paint = new Paint();
   private final Layer layerModel;
+  private int backgroundAlpha;
+  private int paintAlpha;
 
   SolidLayer(LottieDrawable lottieDrawable, Layer layerModel) {
     super(lottieDrawable, layerModel);
@@ -21,17 +23,16 @@ class SolidLayer extends BaseLayer {
     paint.setAlpha(0);
     paint.setStyle(Paint.Style.FILL);
     paint.setColor(layerModel.getSolidColor());
+    backgroundAlpha=Color.alpha(layerModel.getSolidColor());
+    paintAlpha=(int) ((backgroundAlpha / 255f * transform.getOpacity().getValue() / 100f) * 255);
   }
 
   @Override public void drawLayer(Canvas canvas, Matrix parentMatrix, int parentAlpha) {
-    int backgroundAlpha = Color.alpha(layerModel.getSolidColor());
     if (backgroundAlpha == 0) {
       return;
     }
-
-    int alpha = (int) ((backgroundAlpha / 255f * transform.getOpacity().getValue() / 100f) * 255);
-    paint.setAlpha(alpha);
-    if (alpha > 0) {
+    paint.setAlpha(parentAlpha);
+    if (parentAlpha > 0) {
       updateRect(parentMatrix);
       canvas.drawRect(rect, paint);
     }

@@ -64,6 +64,8 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
 
   private final List<BaseKeyframeAnimation<?, ?>> animations = new ArrayList<>();
   final TransformKeyframeAnimation transform;
+  private float transformAlpha;
+  private Matrix transformMatrix;
   private boolean visible = true;
 
   BaseLayer(LottieDrawable lottieDrawable, Layer layerModel) {
@@ -78,6 +80,8 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     }
 
     this.transform = layerModel.getTransform().createAnimation();
+    transformAlpha=  (float) transform.getOpacity().getValue() / 100f;
+    transformMatrix=transform.getMatrix();
     transform.addListener(this);
     transform.addAnimationsToLayer(this);
 
@@ -140,7 +144,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
 
   @CallSuper @Override public void getBounds(RectF outBounds, Matrix parentMatrix) {
     boundsMatrix.set(parentMatrix);
-    boundsMatrix.preConcat(transform.getMatrix());
+    boundsMatrix.preConcat(transformMatrix);
   }
 
   @Override
@@ -152,12 +156,12 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     matrix.reset();
     matrix.set(parentMatrix);
     for (int i = parentLayers.size() - 1; i >= 0; i--) {
-      matrix.preConcat(parentLayers.get(i).transform.getMatrix());
+      matrix.preConcat(parentLayers.get(i) .transform.getMatrix());
     }
     int alpha = (int)
-        ((parentAlpha / 255f * (float) transform.getOpacity().getValue() / 100f) * 255);
+        (parentAlpha *transformAlpha);
     if (!hasMatteOnThisLayer() && !hasMasksOnThisLayer()) {
-      matrix.preConcat(transform.getMatrix());
+      matrix.preConcat(transformMatrix);
       drawLayer(canvas, matrix, alpha);
       return;
     }
@@ -166,7 +170,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     getBounds(rect, matrix);
     intersectBoundsWithMatte(rect, matrix);
 
-    matrix.preConcat(transform.getMatrix());
+    matrix.preConcat(transformMatrix);
     intersectBoundsWithMask(rect, matrix);
 
     rect.set(0, 0, canvas.getWidth(), canvas.getHeight());

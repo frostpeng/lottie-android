@@ -280,7 +280,9 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     }
     matrix.reset();
     matrix.preScale(scale, scale);
+    long currentTime=System.currentTimeMillis();
     compositionLayer.draw(canvas, matrix, alpha);
+    Log.i("frostpeng","cost"+(System.currentTimeMillis()-currentTime));
   }
 
   void systemAnimationsAreDisabled() {

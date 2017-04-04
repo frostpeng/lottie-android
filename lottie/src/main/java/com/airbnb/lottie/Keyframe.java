@@ -25,7 +25,7 @@ class Keyframe<T> {
     int size = keyframes.size();
     for (int i = 0; i < size - 1; i++) {
       // In the json, the keyframes only contain their starting frame.
-      keyframes.get(i).endFrame = keyframes.get(i + 1).startFrame;
+      keyframes.get(i).setEndFrame(keyframes.get(i + 1).startFrame);
     }
     Keyframe<?> lastKeyframe = keyframes.get(size - 1);
     if (lastKeyframe.startValue == null) {
@@ -43,6 +43,10 @@ class Keyframe<T> {
   @Nullable final Interpolator interpolator;
   @SuppressWarnings("WeakerAccess") final float startFrame;
   @SuppressWarnings("WeakerAccess") @Nullable Float endFrame;
+  private float endProgress;
+  private float startProgress;
+  public float durationProgress;
+
 
   public Keyframe(LottieComposition composition, @Nullable T startValue, @Nullable T endValue,
       @Nullable Interpolator interpolator, float startFrame, @Nullable Float endFrame) {
@@ -51,18 +55,25 @@ class Keyframe<T> {
     this.endValue = endValue;
     this.interpolator = interpolator;
     this.startFrame = startFrame;
-    this.endFrame = endFrame;
+    this.startProgress=startFrame / composition.getDurationFrames();
+    setEndFrame(endFrame);
+  }
+
+  public void setEndFrame(@Nullable Float endFrame){
+    this.endFrame=endFrame;
+    endProgress = ((endFrame == null) ? 1f : endFrame / composition.getDurationFrames());
+    durationProgress=endProgress-startProgress;
   }
 
   @FloatRange(from = 0f, to = 1f)
   float getStartProgress() {
-    return startFrame / composition.getDurationFrames();
+    return startProgress;
   }
 
   @FloatRange(from = 0f, to = 1f)
   float getEndProgress() {
     //noinspection Range
-    return endFrame == null ? 1f : endFrame / composition.getDurationFrames();
+    return endProgress;
   }
 
   boolean isStatic() {
@@ -70,7 +81,7 @@ class Keyframe<T> {
   }
 
   boolean containsProgress(@FloatRange(from = 0f, to = 1f) float progress) {
-    return progress >= getStartProgress() && progress <= getEndProgress();
+    return progress >= startProgress && progress <= endProgress;
   }
 
   @Override public String toString() {
