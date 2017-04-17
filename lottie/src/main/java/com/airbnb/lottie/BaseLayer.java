@@ -162,7 +162,13 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
         (parentAlpha *transformAlpha);
     if (!hasMatteOnThisLayer() && !hasMasksOnThisLayer()) {
       matrix.preConcat(transformMatrix);
+      long currentTime=System.currentTimeMillis();
       drawLayer(canvas, matrix, alpha);
+      long costTime=System.currentTimeMillis()-currentTime;
+      if(costTime>0) {
+        Log.i("frostpeng", "BaseLayer cost:" + costTime + "," +
+            "progress:" + progress + "," + this.getName());
+      }
       return;
     }
 
@@ -304,7 +310,13 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     }
   }
 
+  private float progress = 0f;
+
   void setProgress(@FloatRange(from = 0f, to = 1f) float progress) {
+    if(this.progress==progress){
+      return;
+    }
+    this.progress=progress;
     if (matteLayer != null) {
       matteLayer.setProgress(progress);
     }

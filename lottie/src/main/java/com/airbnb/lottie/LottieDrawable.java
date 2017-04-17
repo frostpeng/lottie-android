@@ -274,6 +274,8 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     return PixelFormat.TRANSLUCENT;
   }
 
+  private static int count=0;
+  private static long allTime=0;
   @Override public void draw(@NonNull Canvas canvas) {
     if (compositionLayer == null) {
       return;
@@ -282,7 +284,15 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     matrix.preScale(scale, scale);
     long currentTime=System.currentTimeMillis();
     compositionLayer.draw(canvas, matrix, alpha);
-    Log.i("frostpeng","cost"+(System.currentTimeMillis()-currentTime));
+    // Log.i("frostpeng","cost:"+(System.currentTimeMillis()-currentTime)+",progress:"+progress);
+    allTime+=System.currentTimeMillis()-currentTime;
+    count++;
+    if(count==300){
+      Log.i("frostpeng","average cost:"+(allTime*1.0/count));
+      count=0;
+      allTime=0;
+    }
+
   }
 
   void systemAnimationsAreDisabled() {
