@@ -31,8 +31,8 @@ class SolidLayer extends BaseLayer {
     if (backgroundAlpha == 0) {
       return;
     }
-    paint.setAlpha(parentAlpha);
-    if (parentAlpha > 0) {
+    paint.setAlpha(paintAlpha);
+    if (paintAlpha > 0) {
       updateRect(parentMatrix);
       canvas.drawRect(rect, paint);
     }

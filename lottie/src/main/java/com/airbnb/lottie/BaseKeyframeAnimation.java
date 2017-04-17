@@ -22,14 +22,19 @@ abstract class BaseKeyframeAnimation<K, A> {
   private float progress = 0f;
 
   @Nullable private Keyframe<K> cachedKeyframe;
-  private int currentFr=0;
   private float startDelayProgress;
   private float endProgress;
+  //缓存当前进度value，以免重复计算
+  private A currentValue;
+  private Keyframe<K> firstFrame;
+  private int frameSize=0;
 
   BaseKeyframeAnimation(List<? extends Keyframe<K>> keyframes) {
     this.keyframes = keyframes;
     startDelayProgress=keyframes.isEmpty() ? 0f : keyframes.get(0).getStartProgress();
+    firstFrame=keyframes.isEmpty()?null:keyframes.get(0);
     endProgress=keyframes.isEmpty() ? 1f : keyframes.get(keyframes.size() - 1).getEndProgress();
+    frameSize=keyframes.size();
   }
 
   void setIsDiscrete() {
@@ -51,11 +56,13 @@ abstract class BaseKeyframeAnimation<K, A> {
       return;
     }
     this.progress = progress;
-
+    currentValue=null;
+    getValue();
     for (int i = 0; i < listeners.size(); i++) {
       listeners.get(i).onValueChanged();
     }
   }
+
 
   private Keyframe<K> getCurrentKeyframe() {
     if (keyframes.isEmpty()) {
@@ -65,21 +72,22 @@ abstract class BaseKeyframeAnimation<K, A> {
     if (cachedKeyframe != null && cachedKeyframe.containsProgress(progress)) {
       return cachedKeyframe;
     }
-    //frostpeng修改，觉得应该是可以只遍历后面的帧
-    if(keyframes.size()>currentFr) {
-      Keyframe<K> keyframe = keyframes.get(currentFr);
-      // if (progress < keyframe.getStartProgress()) {
-      //   cachedKeyframe = keyframe;
-      //   return keyframe;
-      // }
-      while (!keyframe.containsProgress(progress) && currentFr < keyframes.size()) {
-        keyframe = keyframes.get(currentFr);
-        currentFr++;
-      }
+
+    Keyframe<K> keyframe = firstFrame;
+    if (progress < startDelayProgress) {
       cachedKeyframe = keyframe;
       return keyframe;
     }
-    return cachedKeyframe;
+    if(firstFrame!=null && firstFrame.containsProgress(progress)){
+      return firstFrame;
+    }
+    int i = 1;
+    while (!keyframe.containsProgress(progress) && i < frameSize) {
+      keyframe = keyframes.get(i);
+      i++;
+    }
+    cachedKeyframe = keyframe;
+    return keyframe;
   }
 
   /**
@@ -110,8 +118,11 @@ abstract class BaseKeyframeAnimation<K, A> {
   }
 
   public A getValue() {
-    Keyframe<K> currentFrame=getCurrentKeyframe();
-    return getValue(currentFrame, getCurrentKeyframeProgress(currentFrame));
+    if(currentValue==null) {
+      Keyframe<K> currentFrame = getCurrentKeyframe();
+      currentValue = getValue(currentFrame, getCurrentKeyframeProgress(currentFrame));
+    }
+    return currentValue;
   }
 
   float getProgress() {
