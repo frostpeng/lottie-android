@@ -143,8 +143,8 @@ import java.util.Map;
    * @param contentName name of the specific content that the color filter is to be applied
    * @param colorFilter the color filter, null to clear the color filter
    */
-  public void addColorFilterToContent(String layerName, String contentName,
-      @Nullable ColorFilter colorFilter) {
+  @SuppressWarnings("unused") public void addColorFilterToContent(
+      String layerName, String contentName, @Nullable ColorFilter colorFilter) {
     lottieDrawable.addColorFilterToContent(layerName, contentName, colorFilter);
   }
 
@@ -153,7 +153,8 @@ import java.util.Map;
    * @param layerName name of the layer that the color filter is to be applied
    * @param colorFilter the color filter, null to clear the color filter
    */
-  public void addColorFilterToLayer(String layerName, @Nullable ColorFilter colorFilter) {
+  @SuppressWarnings("unused") public void addColorFilterToLayer(
+      String layerName, @Nullable ColorFilter colorFilter) {
     lottieDrawable.addColorFilterToLayer(layerName, colorFilter);
   }
 
@@ -168,7 +169,7 @@ import java.util.Map;
   /**
    * Clear all color filters on all layers and all content in the layers
    */
-  public void clearColorFilters() {
+  @SuppressWarnings("unused") public void clearColorFilters() {
     lottieDrawable.clearColorFilters();
   }
 
@@ -300,8 +301,7 @@ import java.util.Map;
     cancelLoaderTask();
     compositionLoader = LottieComposition.Factory.fromAssetFileName(getContext(), animationName,
         new OnCompositionLoadedListener() {
-          @Override
-          public void onCompositionLoaded(LottieComposition composition) {
+          @Override public void onCompositionLoaded(LottieComposition composition) {
             if (cacheStrategy == CacheStrategy.Strong) {
               strongRefCache.put(animationName, composition);
             } else if (cacheStrategy == CacheStrategy.Weak) {
@@ -456,12 +456,25 @@ import java.util.Map;
     lottieDrawable.setImageAssetDelegate(assetDelegate);
   }
 
-  void setScale(float scale) {
+  /**
+   * Set the scale on the current composition. The only cost of this function is re-rendering the
+   * current frame so you may call it frequent to scale something up or down.
+   *
+   * The smaller the animation is, the better the performance will be. You may find that scaling an
+   * animation down then rendering it in a larger ImageView and letting ImageView scale it back up
+   * with a scaleType such as centerInside will yield better performance with little perceivable
+   * quality loss.
+   */
+  public void setScale(float scale) {
     lottieDrawable.setScale(scale);
     if (getDrawable() == lottieDrawable) {
       setImageDrawable(null);
       setImageDrawable(lottieDrawable);
     }
+  }
+
+  public float getScale() {
+    return lottieDrawable.getScale();
   }
 
   public void cancelAnimation() {

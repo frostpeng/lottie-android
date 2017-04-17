@@ -44,7 +44,7 @@ Gradle is the only supported build configuration, so just add the dependency to 
 
 ```groovy
 dependencies {  
-  compile 'com.airbnb.android:lottie:2.0.0-beta3'
+  compile 'com.airbnb.android:lottie:2.0.0-beta4'
 }
 ```
 
@@ -116,7 +116,7 @@ animationView.cancelAnimation();
 You can add a color filter to the whole animation, a specific layer, or specific content within a layer:
 ```java
 // Any class that conforms to the ColorFilter interface
-final SimpleColorFilter colorFilter = new SimpleColorFilter(Color.RED);
+final PorterDuffColorFilter colorFilter = new PorterDuffColorFilter(Color.RED, PorterDuff.Mode.LIGHTEN);
 
 // Adding a color filter to the whole view
 animationView.addColorFilter(colorFilter);
