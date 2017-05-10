@@ -21,9 +21,8 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
   private static final int SAVE_FLAGS = Canvas.CLIP_SAVE_FLAG | Canvas.CLIP_TO_LAYER_SAVE_FLAG |
       Canvas.MATRIX_SAVE_FLAG;
 
-  @Nullable
   static BaseLayer forModel(
-    Layer layerModel, LottieDrawable drawable, LottieComposition composition) {
+      Layer layerModel, LottieDrawable drawable, LottieComposition composition) {
     switch (layerModel.getLayerType()) {
       case Shape:
         return new ShapeLayer(drawable, layerModel);
@@ -41,7 +40,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
       default:
         // Do nothing
         Log.w(L.TAG, "Unknown layer type " + layerModel.getLayerType());
-        return null;
+        return new NullLayer(drawable, layerModel);
     }
   }
 
@@ -65,8 +64,6 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
 
   private final List<BaseKeyframeAnimation<?, ?>> animations = new ArrayList<>();
   final TransformKeyframeAnimation transform;
-  private float transformAlpha;
-  private Matrix transformMatrix;
   private boolean visible = true;
 
   BaseLayer(LottieDrawable lottieDrawable, Layer layerModel) {
@@ -81,8 +78,6 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     }
 
     this.transform = layerModel.getTransform().createAnimation();
-    transformAlpha=  (float) transform.getOpacity().getValue() / 100f;
-    transformMatrix=transform.getMatrix();
     transform.addListener(this);
     transform.addAnimationsToLayer(this);
 
@@ -145,7 +140,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
 
   @CallSuper @Override public void getBounds(RectF outBounds, Matrix parentMatrix) {
     boundsMatrix.set(parentMatrix);
-    boundsMatrix.preConcat(transformMatrix);
+    boundsMatrix.preConcat(transform.getMatrix());
   }
 
   @Override
@@ -157,19 +152,13 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     matrix.reset();
     matrix.set(parentMatrix);
     for (int i = parentLayers.size() - 1; i >= 0; i--) {
-      matrix.preConcat(parentLayers.get(i) .transform.getMatrix());
+      matrix.preConcat(parentLayers.get(i).transform.getMatrix());
     }
     int alpha = (int)
-        (parentAlpha *transformAlpha);
+        ((parentAlpha / 255f * (float) transform.getOpacity().getValue() / 100f) * 255);
     if (!hasMatteOnThisLayer() && !hasMasksOnThisLayer()) {
-      matrix.preConcat(transformMatrix);
-      long currentTime=System.currentTimeMillis();
+      matrix.preConcat(transform.getMatrix());
       drawLayer(canvas, matrix, alpha);
-      long costTime=System.currentTimeMillis()-currentTime;
-      if(costTime>0) {
-        Log.i("frostpeng", "BaseLayer cost:" + costTime + "," +
-            "progress:" + progress + "," + this.getName());
-      }
       return;
     }
 
@@ -177,7 +166,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     getBounds(rect, matrix);
     intersectBoundsWithMatte(rect, matrix);
 
-    matrix.preConcat(transformMatrix);
+    matrix.preConcat(transform.getMatrix());
     intersectBoundsWithMask(rect, matrix);
 
     rect.set(0, 0, canvas.getWidth(), canvas.getHeight());
@@ -236,10 +225,10 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
             maskBoundsRect.set(tempMaskBoundsRect);
           } else {
             maskBoundsRect.set(
-              Math.min(maskBoundsRect.left, tempMaskBoundsRect.left),
-              Math.min(maskBoundsRect.top, tempMaskBoundsRect.top),
-              Math.max(maskBoundsRect.right, tempMaskBoundsRect.right),
-              Math.max(maskBoundsRect.bottom, tempMaskBoundsRect.bottom)
+                Math.min(maskBoundsRect.left, tempMaskBoundsRect.left),
+                Math.min(maskBoundsRect.top, tempMaskBoundsRect.top),
+                Math.max(maskBoundsRect.right, tempMaskBoundsRect.right),
+                Math.max(maskBoundsRect.bottom, tempMaskBoundsRect.bottom)
             );
           }
       }
@@ -311,13 +300,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
     }
   }
 
-  private float progress = 0f;
-
   void setProgress(@FloatRange(from = 0f, to = 1f) float progress) {
-    if(this.progress==progress){
-      return;
-    }
-    this.progress=progress;
     if (matteLayer != null) {
       matteLayer.setProgress(progress);
     }
