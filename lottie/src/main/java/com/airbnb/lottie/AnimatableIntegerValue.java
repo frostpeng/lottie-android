@@ -21,6 +21,7 @@ class AnimatableIntegerValue extends BaseAnimatableValue<Integer, Integer> {
     return new IntegerKeyframeAnimation(keyframes);
   }
 
+  @Override
   public Integer getInitialValue() {
     return initialValue;
   }
@@ -35,6 +36,9 @@ class AnimatableIntegerValue extends BaseAnimatableValue<Integer, Integer> {
 
     static AnimatableIntegerValue newInstance(
         JSONObject json, LottieComposition composition) {
+      if (json != null && json.has("x")) {
+        composition.addWarning("Lottie doesn't support expressions.");
+      }
       AnimatableValueParser.Result<Integer> result = AnimatableValueParser
           .newInstance(json, 1, composition, ValueFactory.INSTANCE)
           .parseJson();

@@ -19,8 +19,6 @@ class FillContent implements DrawingContent, BaseKeyframeAnimation.AnimationList
   private final KeyframeAnimation<Integer> colorAnimation;
   private final KeyframeAnimation<Integer> opacityAnimation;
   private final LottieDrawable lottieDrawable;
-  private float animationAlpha;
-  private int animationColor;
 
   FillContent(final LottieDrawable lottieDrawable, BaseLayer layer, ShapeFill fill) {
     name = fill.getName();
@@ -39,8 +37,6 @@ class FillContent implements DrawingContent, BaseKeyframeAnimation.AnimationList
     opacityAnimation = fill.getOpacity().createAnimation();
     opacityAnimation.addUpdateListener(this);
     layer.addAnimation(opacityAnimation);
-    animationColor=colorAnimation.getValue();
-    animationAlpha=opacityAnimation.getValue() / 100f;
   }
 
   @Override public void onValueChanged() {
@@ -66,8 +62,9 @@ class FillContent implements DrawingContent, BaseKeyframeAnimation.AnimationList
   }
 
   @Override public void draw(Canvas canvas, Matrix parentMatrix, int parentAlpha) {
-    paint.setColor(animationColor);
-    int alpha = (int) (parentAlpha*animationAlpha);
+    L.beginSection("FillContent#draw");
+    paint.setColor(colorAnimation.getValue());
+    int alpha = (int) ((parentAlpha / 255f * opacityAnimation.getValue() / 100f) * 255);
     paint.setAlpha(alpha);
 
     path.reset();
@@ -76,6 +73,7 @@ class FillContent implements DrawingContent, BaseKeyframeAnimation.AnimationList
     }
 
     canvas.drawPath(path, paint);
+    L.endSection("FillContent#draw");
   }
 
   @Override public void getBounds(RectF outBounds, Matrix parentMatrix) {

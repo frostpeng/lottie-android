@@ -8,6 +8,7 @@ import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.support.annotation.FloatRange;
@@ -36,19 +37,23 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
   private LottieComposition composition;
   private final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
   private float speed = 1f;
-  private float scale = 1f;
   private float progress = 0f;
+  private float scale = 1f;
 
   private final Set<ColorFilterData> colorFilterData = new HashSet<>();
-  @Nullable private ImageAssetBitmapManager imageAssetBitmapManager;
+  @Nullable private ImageAssetManager imageAssetManager;
   @Nullable private String imageAssetsFolder;
   @Nullable private ImageAssetDelegate imageAssetDelegate;
+  @Nullable private FontAssetManager fontAssetManager;
+  @Nullable FontAssetDelegate fontAssetDelegate;
+  @Nullable TextDelegate textDelegate;
   private boolean playAnimationWhenCompositionAdded;
   private boolean reverseAnimationWhenCompositionAdded;
   private boolean systemAnimationsAreDisabled;
   private boolean enableMergePaths;
   @Nullable private CompositionLayer compositionLayer;
   private int alpha = 255;
+  private boolean performanceTrackingEnabled;
 
   @SuppressWarnings("WeakerAccess") public LottieDrawable() {
     animator.setRepeatCount(0);
@@ -118,6 +123,10 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     this.imageAssetsFolder = imageAssetsFolder;
   }
 
+  @SuppressWarnings("WeakerAccess") @Nullable public String getImageAssetsFolder() {
+    return imageAssetsFolder;
+  }
+
   /**
    * If you have image assets and use {@link LottieDrawable} directly, you must call this yourself.
    *
@@ -126,8 +135,8 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
    *
    */
   @SuppressWarnings("WeakerAccess") public void recycleBitmaps() {
-    if (imageAssetBitmapManager != null) {
-      imageAssetBitmapManager.recycleBitmaps();
+    if (imageAssetManager != null) {
+      imageAssetManager.recycleBitmaps();
     }
   }
 
@@ -135,14 +144,6 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
    * @return True if the composition is different from the previously set composition, false otherwise.
    */
   @SuppressWarnings("WeakerAccess") public boolean setComposition(LottieComposition composition) {
-    if (getCallback() == null) {
-      throw new IllegalStateException(
-          "You or your view must set a Drawable.Callback before setting the composition. This " +
-              "gets done automatically when added to an ImageView. " +
-              "Either call ImageView.setImageDrawable() before setComposition() or call " +
-              "setCallback(yourView.getCallback()) first.");
-    }
-
     if (this.composition == composition) {
       return false;
     }
@@ -150,7 +151,6 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     clearComposition();
     this.composition = composition;
     setSpeed(speed);
-    setScale(1f);
     updateBounds();
     buildCompositionLayer();
     applyColorFilters();
@@ -164,8 +164,24 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
       reverseAnimationWhenCompositionAdded = false;
       reverseAnimation();
     }
+    composition.setPerformanceTrackingEnabled(performanceTrackingEnabled);
 
     return true;
+  }
+
+  @SuppressWarnings("WeakerAccess") public void setPerformanceTrackingEnabled(boolean enabled) {
+    performanceTrackingEnabled = enabled;
+    if (composition != null) {
+      composition.setPerformanceTrackingEnabled(enabled);
+    }
+  }
+
+  @Nullable
+  public PerformanceTracker getPerformanceTracker() {
+    if (composition != null) {
+      return composition.getPerformanceTracker();
+    }
+    return null;
   }
 
   private void buildCompositionLayer() {
@@ -186,7 +202,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
   private void clearComposition() {
     recycleBitmaps();
     compositionLayer = null;
-    imageAssetBitmapManager = null;
+    imageAssetManager = null;
     invalidateSelf();
   }
 
@@ -215,7 +231,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
    * @param contentName name of the specific content that the color filter is to be applied
    * @param colorFilter the color filter, null to clear the color filter
    */
-  public void addColorFilterToContent(String layerName, String contentName,
+  @SuppressWarnings("WeakerAccess") public void addColorFilterToContent(String layerName, String contentName,
       @Nullable ColorFilter colorFilter) {
     addColorFilterInternal(layerName, contentName, colorFilter);
   }
@@ -225,7 +241,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
    * @param layerName name of the layer that the color filter is to be applied
    * @param colorFilter the color filter, null to clear the color filter
    */
-  public void addColorFilterToLayer(String layerName, @Nullable ColorFilter colorFilter) {
+  @SuppressWarnings("WeakerAccess") public void addColorFilterToLayer(String layerName, @Nullable ColorFilter colorFilter) {
     addColorFilterInternal(layerName, null, colorFilter);
   }
 
@@ -240,7 +256,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
   /**
    * Clear all color filters on all layers and all content in the layers
    */
-  public void clearColorFilters() {
+  @SuppressWarnings("WeakerAccess") public void clearColorFilters() {
     colorFilterData.clear();
     addColorFilterInternal(null, null, null);
   }
@@ -275,12 +291,44 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
   }
 
   @Override public void draw(@NonNull Canvas canvas) {
+    L.beginSection("Drawable#draw");
     if (compositionLayer == null) {
       return;
+    }
+    float scale = this.scale;
+    float extraScale = 1f;
+    boolean hasExtraScale = false;
+    float maxScale = getMaxScale(canvas);
+    if (compositionLayer.hasMatte() || compositionLayer.hasMasks()) {
+      // Since we can only scale up the animation so much before masks and mattes get clipped, we
+      // may have to scale the canvas to fake the rest. This isn't a problem for software rendering
+      // but hardware accelerated scaling is rasterized so it will appear pixelated.
+      extraScale = scale / maxScale;
+      scale = Math.min(scale, maxScale);
+      // This check fixes some floating point rounding issues.
+      hasExtraScale = extraScale > 1.001f;
+    }
+
+    if (hasExtraScale) {
+      canvas.save();
+      // This is extraScale ^2 because what happens is when the scale increases, the intrinsic size
+      // of the view increases. That causes the drawable to keep growing even though we are only
+      // rendering to the size of the view in the top left quarter, leaving the rest blank.
+      // The first scale by extraScale scales up the canvas so that we are back at the original
+      // size. The second extraScale is what actually has the scaling effect.
+      float extraScaleSquared = extraScale * extraScale;
+      int px = (int) ((composition.getBounds().width() * scale / 2f));
+      int py = (int) ((composition.getBounds().height() * scale / 2f));
+      canvas.scale(extraScaleSquared, extraScaleSquared, px, py);
+
     }
     matrix.reset();
     matrix.preScale(scale, scale);
     compositionLayer.draw(canvas, matrix, alpha);
+    if (hasExtraScale) {
+      canvas.restore();
+    }
+    L.endSection("Drawable#draw");
   }
 
   void systemAnimationsAreDisabled() {
@@ -313,10 +361,11 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
       reverseAnimationWhenCompositionAdded = false;
       return;
     }
-    if (setStartTime) {
-      animator.setCurrentPlayTime((long) (progress * animator.getDuration()));
-    }
+    long playTime = setStartTime ? (long) (progress * animator.getDuration()) : 0;
     animator.start();
+    if (setStartTime) {
+      animator.setCurrentPlayTime(playTime);
+    }
   }
 
   @SuppressWarnings({"unused", "WeakerAccess"}) public void resumeReverseAnimation() {
@@ -376,9 +425,33 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
   @SuppressWarnings({"unused", "WeakerAccess"}) public void setImageAssetDelegate(
       @SuppressWarnings("NullableProblems") ImageAssetDelegate assetDelegate) {
     this.imageAssetDelegate = assetDelegate;
-    if (imageAssetBitmapManager != null) {
-      imageAssetBitmapManager.setAssetDelegate(assetDelegate);
+    if (imageAssetManager != null) {
+      imageAssetManager.setDelegate(assetDelegate);
     }
+  }
+
+  /**
+   * Use this to manually set fonts.
+   */
+  @SuppressWarnings({"unused", "WeakerAccess"}) public void setFontAssetDelegate(
+      @SuppressWarnings("NullableProblems") FontAssetDelegate assetDelegate) {
+    this.fontAssetDelegate = assetDelegate;
+    if (fontAssetManager != null) {
+      fontAssetManager.setDelegate(assetDelegate);
+    }
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setTextDelegate(@SuppressWarnings("NullableProblems") TextDelegate textDelegate) {
+    this.textDelegate = textDelegate;
+  }
+
+  @Nullable TextDelegate getTextDelegate() {
+    return textDelegate;
+  }
+
+  boolean useTextGlyphs() {
+    return textDelegate == null && composition.getCharacters().size() > 0;
   }
 
   @SuppressWarnings("WeakerAccess") public float getScale() {
@@ -393,6 +466,7 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     if (composition == null) {
       return;
     }
+    float scale = getScale();
     setBounds(0, 0, (int) (composition.getBounds().width() * scale),
         (int) (composition.getBounds().height() * scale));
   }
@@ -427,23 +501,74 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     return composition == null ? -1 : (int) (composition.getBounds().height() * scale);
   }
 
+  /**
+   * Allows you to modify or clear a bitmap that was loaded for an image either automatically
+   * through {@link #setImagesAssetsFolder(String)} or with an {@link ImageAssetDelegate}.
+   *
+   * @return the previous Bitmap or null.
+   */
   @Nullable
-  Bitmap getImageAsset(String id) {
-    return getImageAssetBitmapManager().bitmapForId(id);
+  @SuppressWarnings({"unused", "WeakerAccess"})
+  public Bitmap updateBitmap(String id, @Nullable Bitmap bitmap) {
+    ImageAssetManager bm = getImageAssetManager();
+    if (bm == null) {
+      Log.w(L.TAG, "Cannot update bitmap. Most likely the drawable is not added to a View " +
+        "which prevents Lottie from getting a Context.");
+      return null;
+    }
+    Bitmap ret = bm.updateBitmap(id, bitmap);
+    invalidateSelf();
+    return ret;
   }
 
-  private ImageAssetBitmapManager getImageAssetBitmapManager() {
-    if (imageAssetBitmapManager != null && !imageAssetBitmapManager.hasSameContext(getContext())) {
-      imageAssetBitmapManager.recycleBitmaps();
-      imageAssetBitmapManager = null;
+  @Nullable
+  Bitmap getImageAsset(String id) {
+    ImageAssetManager bm = getImageAssetManager();
+    if (bm != null) {
+      return bm.bitmapForId(id);
+    }
+    return null;
+  }
+
+  private ImageAssetManager getImageAssetManager() {
+    if (getCallback() == null) {
+      // We can't get a bitmap since we can't get a Context from the callback.
+      return null;
     }
 
-    if (imageAssetBitmapManager == null) {
-      imageAssetBitmapManager = new ImageAssetBitmapManager(getCallback(),
+    if (imageAssetManager != null && !imageAssetManager.hasSameContext(getContext())) {
+      imageAssetManager.recycleBitmaps();
+      imageAssetManager = null;
+    }
+
+    if (imageAssetManager == null) {
+      imageAssetManager = new ImageAssetManager(getCallback(),
           imageAssetsFolder, imageAssetDelegate, composition.getImages());
     }
 
-    return imageAssetBitmapManager;
+    return imageAssetManager;
+  }
+
+  @Nullable
+  Typeface getTypeface(String fontFamily, String style) {
+    FontAssetManager assetManager = getFontAssetManager();
+    if (assetManager != null) {
+      return assetManager.getTypeface(fontFamily, style);
+    }
+    return null;
+  }
+
+  private FontAssetManager getFontAssetManager() {
+    if (getCallback() == null) {
+      // We can't get a bitmap since we can't get a Context from the callback.
+      return null;
+    }
+
+    if (fontAssetManager == null) {
+      fontAssetManager = new FontAssetManager(getCallback(), fontAssetDelegate);
+    }
+
+    return fontAssetManager;
   }
 
   private @Nullable Context getContext() {
@@ -456,6 +581,16 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
       return ((View) callback).getContext();
     }
     return null;
+  }
+
+  /**
+   * If there are masks or mattes, we can't scale the animation larger than the canvas or else
+   * the off screen rendering for masks and mattes after saveLayer calls will get clipped.
+   */
+  private float getMaxScale(@NonNull Canvas canvas) {
+    float maxScaleX = canvas.getWidth() / (float) composition.getBounds().width();
+    float maxScaleY = canvas.getHeight() / (float) composition.getBounds().height();
+    return Math.min(maxScaleX, maxScaleY);
   }
 
   /**
@@ -521,15 +656,8 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
 
       final ColorFilterData other = (ColorFilterData) obj;
 
-      if (hashCode() != other.hashCode()) {
-        return false;
-      }
+      return hashCode() == other.hashCode() && colorFilter == other.colorFilter;
 
-      if (colorFilter != other.colorFilter) {
-        return false;
-      }
-
-      return true;
     }
   }
 }

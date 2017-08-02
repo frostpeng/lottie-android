@@ -21,6 +21,7 @@ class AnimatableFloatValue extends BaseAnimatableValue<Float, Float> {
     return new FloatKeyframeAnimation(keyframes);
   }
 
+  @Override
   public Float getInitialValue() {
     return initialValue;
   }
@@ -51,6 +52,9 @@ class AnimatableFloatValue extends BaseAnimatableValue<Float, Float> {
     static AnimatableFloatValue newInstance(JSONObject json, LottieComposition composition,
         boolean isDp) {
       float scale = isDp ? composition.getDpScale() : 1f;
+      if (json != null && json.has("x")) {
+        composition.addWarning("Lottie doesn't support expressions.");
+      }
       AnimatableValueParser.Result<Float> result = AnimatableValueParser
           .newInstance(json, scale, composition, ValueFactory.INSTANCE)
           .parseJson();

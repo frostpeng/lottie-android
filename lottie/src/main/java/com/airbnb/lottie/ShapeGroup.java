@@ -10,8 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-class ShapeGroup {
-  @Nullable static Object shapeItemWithJson(JSONObject json, LottieComposition composition) {
+class ShapeGroup implements ContentModel {
+  @Nullable static ContentModel shapeItemWithJson(JSONObject json, LottieComposition composition) {
     String type = json.optString("ty");
 
     switch (type) {
@@ -39,6 +39,8 @@ class ShapeGroup {
         return PolystarShape.Factory.newInstance(json, composition);
       case "mm":
         return MergePaths.Factory.newInstance(json);
+      case "rp":
+        return Repeater.Factory.newInstance(json, composition);
       default:
         Log.w(L.TAG, "Unknown shape type " + type);
     }
@@ -46,9 +48,9 @@ class ShapeGroup {
   }
 
   private final String name;
-  private final List<Object> items;
+  private final List<ContentModel> items;
 
-  ShapeGroup(String name, List<Object> items) {
+  ShapeGroup(String name, List<ContentModel> items) {
     this.name = name;
     this.items = items;
   }
@@ -60,10 +62,10 @@ class ShapeGroup {
     private static ShapeGroup newInstance(JSONObject json, LottieComposition composition) {
       JSONArray jsonItems = json.optJSONArray("it");
       String name = json.optString("nm");
-      List<Object> items = new ArrayList<>();
+      List<ContentModel> items = new ArrayList<>();
 
       for (int i = 0; i < jsonItems.length(); i++) {
-        Object newItem = shapeItemWithJson(jsonItems.optJSONObject(i), composition);
+        ContentModel newItem = shapeItemWithJson(jsonItems.optJSONObject(i), composition);
         if (newItem != null) {
           items.add(newItem);
         }
@@ -76,8 +78,12 @@ class ShapeGroup {
     return name;
   }
 
-  List<Object> getItems() {
+  List<ContentModel> getItems() {
     return items;
+  }
+
+  @Override public Content toContent(LottieDrawable drawable, BaseLayer layer) {
+    return new ContentGroup(drawable, layer, this);
   }
 
   @Override public String toString() {

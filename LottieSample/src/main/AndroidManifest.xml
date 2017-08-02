@@ -22,9 +22,12 @@
 
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts"/>
         </activity>
         <activity
-            android:name=".FontActivity"
+            android:name=".TypographyDemoActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="stateVisible"/>
         <activity
@@ -32,6 +35,10 @@
             android:screenOrientation="portrait"/>
         <activity
             android:name=".QRScanActivity"
+            android:screenOrientation="portrait"/>
+        <activity android:name=".FullScreenActivity" />
+        <activity
+            android:name=".TestColorFilterActivity"
             android:screenOrientation="portrait"/>
     </application>
 

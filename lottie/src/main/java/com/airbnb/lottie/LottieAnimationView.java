@@ -5,6 +5,8 @@ import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -65,8 +67,10 @@ import com.qzone.R;
   private final OnCompositionLoadedListener loadedListener =
       new OnCompositionLoadedListener() {
         @Override
-        public void onCompositionLoaded(LottieComposition composition) {
-          setComposition(composition);
+        public void onCompositionLoaded(@Nullable LottieComposition composition) {
+          if (composition != null) {
+            setComposition(composition);
+          }
           compositionLoader = null;
         }
       };
@@ -76,6 +80,7 @@ import com.qzone.R;
   private String animationName;
   private boolean wasAnimatingWhenDetached = false;
   private boolean autoPlay = false;
+  private boolean useHardwareLayer = false;
 
   @Nullable private Cancellable compositionLoader;
   /**
@@ -100,6 +105,10 @@ import com.qzone.R;
 
   private void init(@Nullable AttributeSet attrs) {
     TypedArray ta = getContext().obtainStyledAttributes(attrs, R.styleable.LottieAnimationView);
+    int cacheStrategy = ta.getInt(
+        R.styleable.LottieAnimationView_lottie_cacheStrategy,
+        CacheStrategy.None.ordinal());
+    defaultCacheStrategy = CacheStrategy.values()[cacheStrategy];
     String fileName = ta.getString(R.styleable.LottieAnimationView_lottie_fileName);
     if (!isInEditMode() && fileName != null) {
       setAnimation(fileName);
@@ -113,19 +122,24 @@ import com.qzone.R;
     setProgress(ta.getFloat(R.styleable.LottieAnimationView_lottie_progress, 0));
     enableMergePathsForKitKatAndAbove(ta.getBoolean(
         R.styleable.LottieAnimationView_lottie_enableMergePathsForKitKatAndAbove, false));
-    int cacheStrategy = ta.getInt(
-        R.styleable.LottieAnimationView_lottie_cacheStrategy,
-        CacheStrategy.None.ordinal());
-    defaultCacheStrategy = CacheStrategy.values()[cacheStrategy];
+    if (ta.hasValue(R.styleable.LottieAnimationView_lottie_colorFilter)) {
+      addColorFilter(new SimpleColorFilter(ta.getColor(
+          R.styleable.LottieAnimationView_lottie_colorFilter, Color.TRANSPARENT)));
+    }
+    if (ta.hasValue(R.styleable.LottieAnimationView_lottie_scale)) {
+      lottieDrawable.setScale(ta.getFloat(R.styleable.LottieAnimationView_lottie_scale, 1f));
+    }
+
     ta.recycle();
-    setLayerType(LAYER_TYPE_HARDWARE, null);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-    float systemAnimationScale = Settings.Global.getFloat(getContext().getContentResolver(),
-        Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f);
+      float systemAnimationScale = Settings.Global.getFloat(getContext().getContentResolver(),
+          Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f);
       if (systemAnimationScale == 0f) {
         lottieDrawable.systemAnimationsAreDisabled();
       }
     }
+
+    enableOrDisableHardwareLayer();
   }
 
   @Override public void setImageResource(int resId) {
@@ -178,7 +192,7 @@ import com.qzone.R;
 
   @Override public void invalidateDrawable(@NonNull Drawable dr) {
     if (getDrawable() == lottieDrawable) {
-      // We always want to invalidate the root drawable to it redraws the whole drawable.
+      // We always want to invalidate the root drawable so it redraws the whole drawable.
       // Eventually it would be great to be able to invalidate just the changed region.
       super.invalidateDrawable(lottieDrawable);
     } else {
@@ -194,6 +208,7 @@ import com.qzone.R;
     ss.progress = lottieDrawable.getProgress();
     ss.isAnimating = lottieDrawable.isAnimating();
     ss.isLooping = lottieDrawable.isLooping();
+    ss.imageAssetsFolder = lottieDrawable.getImageAssetsFolder();
     return ss;
   }
 
@@ -214,6 +229,7 @@ import com.qzone.R;
     if (ss.isAnimating) {
       playAnimation();
     }
+    lottieDrawable.setImagesAssetsFolder(ss.imageAssetsFolder);
   }
 
   @Override protected void onAttachedToWindow() {
@@ -253,6 +269,13 @@ import com.qzone.R;
   }
 
   /**
+   * @see #useExperimentalHardwareAcceleration(boolean)
+   */
+  @SuppressWarnings({"WeakerAccess", "unused"}) public void useExperimentalHardwareAcceleration() {
+    useExperimentalHardwareAcceleration(true);
+  }
+
+  /**
    * Enable hardware acceleration for this view.
    * READ THIS BEFORE ENABLING HARDWARE ACCELERATION:
    * 1) Test your animation on the minimum API level you support. Some drawing features such as
@@ -264,8 +287,10 @@ import com.qzone.R;
    *    potentially break hardware rendering with bugs in their SKIA engine. Lottie cannot do
    *    anything about that.
    */
-  @SuppressWarnings({"WeakerAccess", "unused"}) public void useExperimentalHardwareAcceleration() {
-    setLayerType(LAYER_TYPE_HARDWARE, null);
+  @SuppressWarnings({"WeakerAccess", "unused"})
+  public void useExperimentalHardwareAcceleration(boolean use) {
+    useHardwareLayer = use;
+    enableOrDisableHardwareLayer();
   }
 
   /**
@@ -290,8 +315,9 @@ import com.qzone.R;
     this.animationName = animationName;
     if (weakRefCache.containsKey(animationName)) {
       WeakReference<LottieComposition> compRef = weakRefCache.get(animationName);
-      if (compRef.get() != null) {
-        setComposition(compRef.get());
+      LottieComposition ref = compRef.get();
+      if (ref != null) {
+        setComposition(ref);
         return;
       }
     } else if (strongRefCache.containsKey(animationName)) {
@@ -381,26 +407,12 @@ import com.qzone.R;
     lottieDrawable.setCallback(this);
 
     boolean isNewComposition = lottieDrawable.setComposition(composition);
+    enableOrDisableHardwareLayer();
     if (!isNewComposition) {
       // We can avoid re-setting the drawable, and invalidating the view, since the composition
       // hasn't changed.
       return;
     }
-
-    int screenWidth = Utils.getScreenWidth(getContext());
-    int screenHeight = Utils.getScreenHeight(getContext());
-    int compWidth = composition.getBounds().width();
-    int compHeight = composition.getBounds().height();
-    if (compWidth > screenWidth ||
-        compHeight > screenHeight) {
-      float xScale = screenWidth / (float) compWidth;
-      float yScale = screenHeight / (float) compHeight;
-      setScale(Math.min(xScale, yScale));
-      Log.w(L.TAG, String.format(
-          "Composition larger than the screen %dx%d vs %dx%d. Scaling down.",
-          compWidth, compHeight, screenWidth, screenHeight));
-    }
-
 
     // If you set a different composition on the view, the bounds will not update unless
     // the drawable is different than the original.
@@ -424,18 +436,6 @@ import com.qzone.R;
    */
   @SuppressWarnings("unused") public boolean hasMatte() {
     return lottieDrawable.hasMatte();
-  }
-
-  /**
-   * If you use image assets, you must explicitly specify the folder in assets/ in which they are
-   * located because bodymovin uses the name filenames across all compositions (img_#).
-   * Do NOT rename the images themselves.
-   *
-   * If your images are located in src/main/assets/airbnb_loader/ then call
-   * `setImageAssetsFolder("airbnb_loader/");`.
-   */
-  @SuppressWarnings("WeakerAccess") public void setImageAssetsFolder(String imageAssetsFolder) {
-    lottieDrawable.setImagesAssetsFolder(imageAssetsFolder);
   }
 
   public void addAnimatorUpdateListener(ValueAnimator.AnimatorUpdateListener updateListener) {
@@ -466,22 +466,55 @@ import com.qzone.R;
 
   public void playAnimation() {
     lottieDrawable.playAnimation();
+    enableOrDisableHardwareLayer();
   }
 
   public void resumeAnimation() {
     lottieDrawable.resumeAnimation();
+    enableOrDisableHardwareLayer();
   }
 
   @SuppressWarnings("unused") public void reverseAnimation() {
     lottieDrawable.reverseAnimation();
+    enableOrDisableHardwareLayer();
   }
 
   @SuppressWarnings("unused") public void resumeReverseAnimation() {
     lottieDrawable.resumeReverseAnimation();
+    enableOrDisableHardwareLayer();
   }
 
   @SuppressWarnings("unused") public void setSpeed(float speed) {
     lottieDrawable.setSpeed(speed);
+  }
+
+  /**
+   * If you use image assets, you must explicitly specify the folder in assets/ in which they are
+   * located because bodymovin uses the name filenames across all compositions (img_#).
+   * Do NOT rename the images themselves.
+   *
+   * If your images are located in src/main/assets/airbnb_loader/ then call
+   * `setImageAssetsFolder("airbnb_loader/");`.
+   */
+  @SuppressWarnings("WeakerAccess") public void setImageAssetsFolder(String imageAssetsFolder) {
+    lottieDrawable.setImagesAssetsFolder(imageAssetsFolder);
+  }
+
+  @Nullable
+  public String getImageAssetsFolder() {
+    return lottieDrawable.getImageAssetsFolder();
+  }
+
+  /**
+   * Allows you to modify or clear a bitmap that was loaded for an image either automatically
+   * through {@link #setImageAssetsFolder(String)} or with an {@link ImageAssetDelegate}.
+   *
+   * @return the previous Bitmap or null.
+   */
+  @Nullable
+  @SuppressWarnings({"unused", "WeakerAccess"})
+  public Bitmap updateBitmap(String id, @Nullable Bitmap bitmap) {
+    return lottieDrawable.updateBitmap(id, bitmap);
   }
 
   /**
@@ -491,6 +524,21 @@ import com.qzone.R;
    */
   @SuppressWarnings("unused") public void setImageAssetDelegate(ImageAssetDelegate assetDelegate) {
     lottieDrawable.setImageAssetDelegate(assetDelegate);
+  }
+
+  /**
+   * Use this to manually set fonts.
+   */
+  @SuppressWarnings({"unused", "WeakerAccess"}) public void setFontAssetDelegate(
+      @SuppressWarnings("NullableProblems") FontAssetDelegate assetDelegate) {
+    lottieDrawable.setFontAssetDelegate(assetDelegate);
+  }
+
+  /**
+   * Set this to replace animation text with custom text at runtime
+   */
+  public void setTextDelegate(TextDelegate textDelegate) {
+    lottieDrawable.setTextDelegate(textDelegate);
   }
 
   /**
@@ -516,12 +564,14 @@ import com.qzone.R;
 
   public void cancelAnimation() {
     lottieDrawable.cancelAnimation();
+    enableOrDisableHardwareLayer();
   }
 
   public void pauseAnimation() {
     float progress = getProgress();
     lottieDrawable.cancelAnimation();
     setProgress(progress);
+    enableOrDisableHardwareLayer();
   }
 
   public void setProgress(@FloatRange(from = 0f, to = 1f) float progress) {
@@ -536,11 +586,26 @@ import com.qzone.R;
     return composition != null ? composition.getDuration() : 0;
   }
 
+  public void setPerformanceTrackingEnabled(boolean enabled) {
+    lottieDrawable.setPerformanceTrackingEnabled(enabled);
+  }
+
+  @Nullable
+  public PerformanceTracker getPerformanceTracker() {
+    return lottieDrawable.getPerformanceTracker();
+  }
+
+  private void enableOrDisableHardwareLayer() {
+    boolean useHardwareLayer = this.useHardwareLayer && lottieDrawable.isAnimating();
+    setLayerType(useHardwareLayer ? LAYER_TYPE_HARDWARE : LAYER_TYPE_SOFTWARE, null);
+  }
+
   private static class SavedState extends BaseSavedState {
     String animationName;
     float progress;
     boolean isAnimating;
     boolean isLooping;
+    String imageAssetsFolder;
 
     SavedState(Parcelable superState) {
       super(superState);
@@ -552,6 +617,7 @@ import com.qzone.R;
       progress = in.readFloat();
       isAnimating = in.readInt() == 1;
       isLooping = in.readInt() == 1;
+      imageAssetsFolder = in.readString();
     }
 
     @Override
@@ -561,15 +627,17 @@ import com.qzone.R;
       out.writeFloat(progress);
       out.writeInt(isAnimating ? 1 : 0);
       out.writeInt(isLooping ? 1 : 0);
-
+      out.writeString(imageAssetsFolder);
     }
 
     public static final Parcelable.Creator<SavedState> CREATOR =
         new Parcelable.Creator<SavedState>() {
+          @Override
           public SavedState createFromParcel(Parcel in) {
             return new SavedState(in);
           }
 
+          @Override
           public SavedState[] newArray(int size) {
             return new SavedState[size];
           }

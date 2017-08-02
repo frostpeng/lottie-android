@@ -1,9 +1,52 @@
+# 2.1.0
+### Features and Improvements
+* Added support for animated text (glyphs and fonts)
+* Enabled text to be set dynamically
+* Added support for repeaters
+* Added support for time stretching
+* Added support for work area (trimming start and end frames)
+* Added support for mask opacity
+* Migrated the sample app to Kotlin
+* Added a real time render performance graph in the sample app
+* Added many systrace markers to improve performance tracking
+
+# 2.0.0
+### Features and Improvements
+* Increased version number.
+* New animations from lottiefiles in the sample app.
+### Bugs Fixed
+* Minor trim path fix.
+* Minor gradient caching fix.
+
+# 2.0.0-rc2
+### Features and Improvements
+* Paste json into the sample app.
+* Update a bitmap asset dynamically.
+* Set scale from xml.
+### Bugs Fixed
+* Resume no longer restarts the animation.
+* More lenient crashes and getCallback() checks.
+* Fewer addUpdateListener calls.
+* Fix cache strategy when it and the animation is set from xml.
+
+# 2.0.0-rc1
+### Features and Improvements
+* Set a color filter with xml
+#### Bugs Fixed
+* Prevent a rare crash when used from React Native.
+* Apply transformation to gradient fills.
+* Clip precomps to their bounds.
+* Prevent a crash with certain extreme keyframe values.
+* Fix the sample app for pre-lollipop.
+* Fix some pre-lollipop rendering bugs.
+
+
 # 2.0.0-beta4
-### Features and improvements
-* Added support to load an animation by scanning a qr code with a url to the json. All 
+### Features and Improvements
+* Added support to load an animation by scanning a qr code with a url to the json. All
 lottiefiles.com animations now have qr codes.
 * Added support for opacity stops in gradients.
-* Exposed setScale to arbitrarily scale up or down an animation. Added a slider in Lottie Sample 
+* Exposed setScale to arbitrarily scale up or down an animation. Added a slider in Lottie Sample
 to try it.
 
 #### Bugs Fixed
@@ -12,12 +55,12 @@ to try it.
 * Fixed a bug that would incorrectly draw rounded rectangles.
 
 # 2.0.0-beta3
-#### Features and improvements
+#### Features and Improvements
 * Ground up rewrite of the rendering engine.
 * Vastly improved the performance of masks and mattes.
 * Support for fill types (non-zero or even-odd).
 * Support for gradient fills.
-* Some merge path support. Enable it with `enableMergePathsForKitKatAndAbove` and read the 
+* Some merge path support. Enable it with `enableMergePathsForKitKatAndAbove` and read the
 documentation before using it.
 * Support for multiple fills and strokes on shapes.
 * Expose several package private methods on `LottieAnimationView` and `LottieDrawable`
@@ -28,7 +71,7 @@ documentation before using it.
 * Invalidate whatever drawable is set as the image drawable even if it's not LottieDrawable.
 
 # 1.5.3
-#### Features and improvements
+#### Features and Improvements
 * Added an image asset delegate so you can provide your own bitmaps from and sd card, for example.
 * Added an attr for setting progress.
 * Improved the performance of very large compositions by scaling them down to the screen size.
@@ -40,13 +83,13 @@ documentation before using it.
 
 
 # 1.5.2
-#### Features and improvements
+#### Features and Improvements
 * Significantly improved memory usage when using masks or mattes. No more bitmaps!
 #### Bugs Fixed
 * Further improved the compatibility of masks and mattes.
 
 # 1.5.1
-##### Features and improvements
+##### Features and Improvements
 * Use a thread pool executor for deserialization.
 * Allow setting a default cache strategy
 * Drop repeated calls to setComposition with the same composition.

@@ -1,8 +1,11 @@
 package com.airbnb.lottie;
 
 import android.support.annotation.Nullable;
+import android.view.View;
 
 import com.airbnb.lottie.samples.MainActivity;
+import com.airbnb.lottie.samples.R;
+import com.airbnb.lottie.samples.TestColorFilterActivity;
 import com.facebook.testing.screenshot.Screenshot;
 import com.facebook.testing.screenshot.ViewHelpers;
 
@@ -11,17 +14,19 @@ import java.util.concurrent.Semaphore;
 class TestRobot {
 
   static void testLinearAnimation(MainActivity activity, String fileName) {
-    testLinearAnimation(activity, fileName, null);
+    testLinearAnimation(activity, fileName, null, null);
   }
 
   static void testLinearAnimation(MainActivity activity, String fileName,
-      @Nullable String imageAssetsFolder) {
+      @Nullable String imageAssetsFolder, @Nullable TextDelegate textDelegate) {
     LottieComposition composition =
         LottieComposition.Factory.fromFileSync(activity, fileName);
     AnimationLinearLayout view = new AnimationLinearLayout(activity);
 
     view.setImageAssetsFolder(imageAssetsFolder);
     view.setComposition(composition);
+    view.setTextDelegate(textDelegate);
+
 
     ViewHelpers
         .setupView(view)
@@ -98,5 +103,21 @@ class TestRobot {
     } catch (InterruptedException e) {
       // Do nothing.
     }
+  }
+
+  static void testAddYellowColorFilterInXml(final TestColorFilterActivity activity) {
+    View view = activity.findViewById(R.id.yellow_color_filter);
+    Screenshot.snap(view)
+        .setGroup("test_color_filter")
+        .setName("yellow_color_filter")
+        .record();
+  }
+
+  static void testAddNullColorFilterInXml(final TestColorFilterActivity activity) {
+    View view = activity.findViewById(R.id.null_color_filter);
+    Screenshot.snap(view)
+        .setGroup("test_color_filter")
+        .setName("null_color_filter")
+        .record();
   }
 }

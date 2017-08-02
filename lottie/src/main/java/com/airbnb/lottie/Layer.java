@@ -33,7 +33,7 @@ class Layer {
     Unknown
   }
 
-  private final List<Object> shapes;
+  private final List<ContentModel> shapes;
   private final LottieComposition composition;
   private final String layerName;
   private final long layerId;
@@ -49,14 +49,19 @@ class Layer {
   private final float startProgress;
   private final int preCompWidth;
   private final int preCompHeight;
+  @Nullable private final AnimatableTextFrame text;
+  @Nullable private final AnimatableTextProperties textProperties;
+  @Nullable private final AnimatableFloatValue timeRemapping;
   private final List<Keyframe<Float>> inOutKeyframes;
   private final MatteType matteType;
 
-  private Layer(List<Object> shapes, LottieComposition composition, String layerName, long layerId,
+  private Layer(List<ContentModel> shapes, LottieComposition composition, String layerName, long layerId,
       LayerType layerType, long parentId, @Nullable String refId, List<Mask> masks,
       AnimatableTransform transform, int solidWidth, int solidHeight, int solidColor,
       float timeStretch, float startProgress, int preCompWidth, int preCompHeight,
-      List<Keyframe<Float>> inOutKeyframes, MatteType matteType) {
+      @Nullable AnimatableTextFrame text, @Nullable AnimatableTextProperties textProperties,
+      List<Keyframe<Float>> inOutKeyframes, MatteType matteType,
+      @Nullable AnimatableFloatValue timeRemapping) {
     this.shapes = shapes;
     this.composition = composition;
     this.layerName = layerName;
@@ -73,8 +78,11 @@ class Layer {
     this.startProgress = startProgress;
     this.preCompWidth = preCompWidth;
     this.preCompHeight = preCompHeight;
+    this.text = text;
+    this.textProperties = textProperties;
     this.inOutKeyframes = inOutKeyframes;
     this.matteType = matteType;
+    this.timeRemapping = timeRemapping;
   }
 
   LottieComposition getComposition() {
@@ -129,7 +137,7 @@ class Layer {
     return parentId;
   }
 
-  List<Object> getShapes() {
+  List<ContentModel> getShapes() {
     return shapes;
   }
 
@@ -147,6 +155,18 @@ class Layer {
 
   int getSolidWidth() {
     return solidWidth;
+  }
+
+  @Nullable AnimatableTextFrame getText() {
+    return text;
+  }
+
+  @Nullable AnimatableTextProperties getTextProperties() {
+    return textProperties;
+  }
+
+  @Nullable AnimatableFloatValue getTimeRemapping() {
+    return timeRemapping;
   }
 
   @Override public String toString() {
@@ -187,19 +207,23 @@ class Layer {
     }
 
     static Layer newInstance(LottieComposition composition) {
-      // TODO: make sure in out keyframes work
       Rect bounds = composition.getBounds();
       return new Layer(
-          Collections.emptyList(), composition, null, -1, LayerType.PreComp, -1, null,
-          Collections.<Mask>emptyList(), AnimatableTransform.Factory.newInstance(),
-          0, 0, 0, 0, 0,
-          bounds.width(), bounds.height(), Collections.<Keyframe<Float>>emptyList(), MatteType
-          .None);
+          Collections.<ContentModel>emptyList(), composition, "root", -1,
+          LayerType.PreComp, -1, null, Collections.<Mask>emptyList(),
+          AnimatableTransform.Factory.newInstance(), 0, 0, 0, 0, 0,
+          bounds.width(), bounds.height(), null, null, Collections.<Keyframe<Float>>emptyList(),
+          MatteType.None, null);
     }
 
     static Layer newInstance(JSONObject json, LottieComposition composition) {
       String layerName = json.optString("nm");
       String refId = json.optString("refId");
+
+      if (layerName.endsWith(".ai") || json.optString("cl", "").equals("ai")) {
+        composition.addWarning("Convert your Illustrator layers to shape layers.");
+      }
+
       long layerId = json.optLong("ind");
       int solidWidth = 0;
       int solidHeight = 0;
@@ -212,6 +236,11 @@ class Layer {
         layerType = LayerType.values()[layerTypeInt];
       } else {
         layerType = LayerType.Unknown;
+      }
+
+      if (layerType == LayerType.Text && !Utils.isAtLeastVersion(composition, 4, 8, 0)) {
+        layerType = LayerType.Unknown;
+        composition.addWarning("Text is only supported on bodymovin >= 4.8.0");
       }
 
       long parentId = json.optLong("parent", -1);
@@ -229,7 +258,6 @@ class Layer {
       AnimatableTransform transform = AnimatableTransform.Factory.newInstance(json.optJSONObject("ks"),
           composition);
       MatteType matteType = MatteType.values()[json.optInt("tt")];
-      List<Object> shapes = new ArrayList<>();
       List<Mask> masks = new ArrayList<>();
       List<Keyframe<Float>> inOutKeyframes = new ArrayList<>();
       JSONArray jsonMasks = json.optJSONArray("masksProperties");
@@ -240,14 +268,30 @@ class Layer {
         }
       }
 
+      List<ContentModel> shapes = new ArrayList<>();
       JSONArray shapesJson = json.optJSONArray("shapes");
       if (shapesJson != null) {
         for (int i = 0; i < shapesJson.length(); i++) {
-          Object shape = ShapeGroup.shapeItemWithJson(shapesJson.optJSONObject(i), composition);
+          ContentModel shape = ShapeGroup.shapeItemWithJson(shapesJson.optJSONObject(i), composition);
           if (shape != null) {
             shapes.add(shape);
           }
         }
+      }
+
+      AnimatableTextFrame text = null;
+      AnimatableTextProperties textProperties = null;
+      JSONObject textJson = json.optJSONObject("t");
+      if (textJson != null) {
+        text = AnimatableTextFrame.Factory.newInstance(textJson.optJSONObject("d"), composition);
+        JSONObject propertiesJson = textJson.optJSONArray("a").optJSONObject(0);
+        textProperties = AnimatableTextProperties.Factory.newInstance(propertiesJson, composition);
+      }
+
+      if (json.has("ef")) {
+        composition.addWarning("Lottie doesn't support layer effects. If you are using them for " +
+            " fills, strokes, trim paths etc. then try adding them directly as contents " +
+            " in your shape.");
       }
 
       float timeStretch = (float) json.optDouble("sr", 1.0);
@@ -260,8 +304,11 @@ class Layer {
         preCompHeight = (int) (json.optInt("h") * composition.getDpScale());
       }
 
-      float inFrame = json.optLong("ip");
-      float outFrame = json.optLong("op");
+      // Bodymovin pre-scales the in frame and out frame by the time stretch. However, that will
+      // cause the stretch to be double counted since the in out animation gets treated the same
+      // as all other animations and will have stretch applied to it again.
+      float inFrame = json.optLong("ip") / timeStretch;
+      float outFrame = json.optLong("op") / timeStretch;
 
       // Before the in frame
       if (inFrame > 0) {
@@ -275,15 +322,20 @@ class Layer {
           new Keyframe<>(composition, 1f, 1f, null, inFrame, outFrame);
       inOutKeyframes.add(visibleKeyframe);
 
-      if (outFrame <= composition.getDurationFrames()) {
-        Keyframe<Float> outKeyframe =
-            new Keyframe<>(composition, 0f, 0f, null, outFrame, (float) composition.getEndFrame());
-        inOutKeyframes.add(outKeyframe);
+      Keyframe<Float> outKeyframe = new Keyframe<>(
+          composition, 0f, 0f, null, outFrame, Float.MAX_VALUE);
+      inOutKeyframes.add(outKeyframe);
+
+      AnimatableFloatValue timeRemapping = null;
+      if (json.has("tm")) {
+        timeRemapping =
+            AnimatableFloatValue.Factory.newInstance(json.optJSONObject("tm"), composition, false);
       }
 
       return new Layer(shapes, composition, layerName, layerId, layerType, parentId, refId,
           masks, transform, solidWidth, solidHeight, solidColor, timeStretch, startProgress,
-          preCompWidth, preCompHeight, inOutKeyframes, matteType);
+          preCompWidth, preCompHeight, text, textProperties, inOutKeyframes, matteType,
+          timeRemapping);
     }
   }
 }

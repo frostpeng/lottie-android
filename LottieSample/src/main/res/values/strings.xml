@@ -1,8 +1,23 @@
 <resources>
     <string name="app_name">Lottie</string>
     <string name="invalid_assets">Unable to load assets</string>
+    <string name="render_times_graph">Show real time render time graph</string>
     <string name="hardware_acceleration">Use hardware acceleration</string>
     <string name="enable_merge_paths">Enable merge paths (KK+ only)</string>
     <string name="permission_required">Camera permissions are required to use the QR Scanner</string>
     <string name="scan_prompt">Scan QR Code from lottiefiles.com</string>
+    <string name="warnings_zero">%1$d warnings</string>
+    <string name="warnings_one">%1$d warning</string>
+    <string name="warnings_many">%1$d warnings</string>
+
+    <!-- Shortcuts -->
+    <string name="shortcut_animation_viewer">Animation Viewer</string>
+    <string name="shortcut_animation_viewer_short">Viewer</string>
+    <string name="shortcut_animated_typography">Animated Typography</string>
+    <string name="shortcut_animated_typography_short">Typography</string>
+    <string name="shortcut_animated_app_tutorial">Animated App Tutorial</string>
+    <string name="shortcut_animated_app_tutorial_short">App Tutorial</string>
+    <string name="shortcut_full_screen_animation">Full Screen Animation</string>
+    <string name="shortcut_full_screen_animation_short">Full Screen</string>
+    <string name="shortcut_disabled">Shortcut Disabled</string>
 </resources>

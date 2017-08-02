@@ -3,6 +3,7 @@ package com.airbnb.lottie;
 import android.graphics.PointF;
 import android.support.annotation.FloatRange;
 import android.support.annotation.Nullable;
+import android.support.v4.util.SparseArrayCompat;
 import android.support.v4.view.animation.PathInterpolatorCompat;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
@@ -10,6 +11,7 @@ import android.view.animation.LinearInterpolator;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,6 +56,9 @@ class Keyframe<T> {
   public float durationProgress;
 
 
+  private float startProgress = Float.MIN_VALUE;
+  private float endProgress = Float.MIN_VALUE;
+
   public Keyframe(LottieComposition composition, @Nullable T startValue, @Nullable T endValue,
       @Nullable Interpolator interpolator, float startFrame, @Nullable Float endFrame) {
     this.composition = composition;
@@ -61,24 +66,33 @@ class Keyframe<T> {
     this.endValue = endValue;
     this.interpolator = interpolator;
     this.startFrame = startFrame;
-    this.startProgress=startFrame / composition.getDurationFrames();
+    if (startProgress == Float.MIN_VALUE) {
+      this.startProgress =
+          (startFrame - composition.getStartFrame()) / composition.getDurationFrames();
+    }
     setEndFrame(endFrame);
   }
 
   public void setEndFrame(@Nullable Float endFrame){
     this.endFrame=endFrame;
-    endProgress = ((endFrame == null) ? 1f : endFrame / composition.getDurationFrames());
-    durationProgress=endProgress-startProgress;
+    if (endProgress == Float.MIN_VALUE) {
+      if (endFrame == null) {
+        endProgress = 1f;
+        durationProgress=endProgress-startProgress;
+      } else {
+        float startProgress = getStartProgress();
+        float durationFrames = endFrame - startFrame;
+        durationProgress = durationFrames / composition.getDurationFrames();
+        endProgress = startProgress + durationProgress;
+      }
+    }
   }
 
-  @FloatRange(from = 0f, to = 1f)
   float getStartProgress() {
     return startProgress;
   }
 
-  @FloatRange(from = 0f, to = 1f)
   float getEndProgress() {
-    //noinspection Range
     return endProgress;
   }
 
@@ -100,6 +114,9 @@ class Keyframe<T> {
   }
 
   static class Factory {
+    private static final SparseArrayCompat<WeakReference<Interpolator>> pathInterpolatorCache =
+        new SparseArrayCompat<>();
+
     private Factory() {
     }
 
@@ -138,12 +155,20 @@ class Keyframe<T> {
           // TODO: create a HoldInterpolator so progress changes don't invalidate.
           interpolator = LINEAR_INTERPOLATOR;
         } else if (cp1 != null) {
-          cp1.x = MiscUtils.clamp(cp1.x, -MAX_CP_VALUE, MAX_CP_VALUE);
+          cp1.x = MiscUtils.clamp(cp1.x, -scale, scale);
           cp1.y = MiscUtils.clamp(cp1.y, -MAX_CP_VALUE, MAX_CP_VALUE);
-          cp2.x = MiscUtils.clamp(cp2.x, -MAX_CP_VALUE, MAX_CP_VALUE);
+          cp2.x = MiscUtils.clamp(cp2.x, -scale, scale);
           cp2.y = MiscUtils.clamp(cp2.y, -MAX_CP_VALUE, MAX_CP_VALUE);
-          interpolator = PathInterpolatorCompat.create(
-              cp1.x / scale, cp1.y / scale, cp2.x / scale, cp2.y / scale);
+          int hash = Utils.hashFor(cp1.x, cp1.y, cp2.x, cp2.y);
+          WeakReference<Interpolator> interpolatorRef = pathInterpolatorCache.get(hash);
+          if (interpolatorRef == null || interpolatorRef.get() == null) {
+            interpolator = PathInterpolatorCompat.create(
+                cp1.x / scale, cp1.y / scale, cp2.x / scale, cp2.y / scale);
+            pathInterpolatorCache.put(hash, new WeakReference<>(interpolator));
+          } else {
+            interpolator = pathInterpolatorCache.get(hash).get();
+          }
+
         } else {
           interpolator = LINEAR_INTERPOLATOR;
         }
