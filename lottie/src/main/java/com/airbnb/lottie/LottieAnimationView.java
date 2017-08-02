@@ -15,7 +15,6 @@ import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
-import android.support.v7.widget.AppCompatImageView;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -23,9 +22,13 @@ import android.widget.ImageView;
 
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
+import com.qzone.R;
 
 /**
  * This view will load, deserialize, and display an After Effects animation exported with
@@ -311,6 +314,40 @@ import java.util.Map;
             setComposition(composition);
           }
         });
+  }
+
+  @SuppressWarnings("WeakerAccess") public void setAnimationFromFile(final String animationPath, final CacheStrategy cacheStrategy) {
+    this.animationName = animationPath;
+    if (weakRefCache.containsKey(animationName)) {
+      WeakReference<LottieComposition> compRef = weakRefCache.get(animationName);
+      if (compRef.get() != null) {
+        setComposition(compRef.get());
+        return;
+      }
+    } else if (strongRefCache.containsKey(animationName)) {
+      setComposition(strongRefCache.get(animationName));
+      return;
+    }
+
+    this.animationName = animationPath;
+    lottieDrawable.cancelAnimation();
+    cancelLoaderTask();
+    try {
+      FileInputStream in = new FileInputStream(new File(animationPath));
+      compositionLoader = LottieComposition.Factory.fromInputStream(getContext(), in,
+              new OnCompositionLoadedListener() {
+                @Override public void onCompositionLoaded(LottieComposition composition) {
+                  if (cacheStrategy == CacheStrategy.Strong) {
+                    strongRefCache.put(animationName, composition);
+                  } else if (cacheStrategy == CacheStrategy.Weak) {
+                    weakRefCache.put(animationName, new WeakReference<>(composition));
+                  }
+                  setComposition(composition);
+                }
+              });
+    } catch (FileNotFoundException e) {
+      e.printStackTrace();
+    }
   }
 
   /**

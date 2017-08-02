@@ -274,25 +274,13 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     return PixelFormat.TRANSLUCENT;
   }
 
-  private static int count=0;
-  private static long allTime=0;
   @Override public void draw(@NonNull Canvas canvas) {
     if (compositionLayer == null) {
       return;
     }
     matrix.reset();
     matrix.preScale(scale, scale);
-    long currentTime=System.currentTimeMillis();
     compositionLayer.draw(canvas, matrix, alpha);
-    // Log.i("frostpeng","cost:"+(System.currentTimeMillis()-currentTime)+",progress:"+progress);
-    allTime+=System.currentTimeMillis()-currentTime;
-    count++;
-    if(count==300){
-      Log.i("frostpeng","average cost:"+(allTime*1.0/count));
-      count=0;
-      allTime=0;
-    }
-
   }
 
   void systemAnimationsAreDisabled() {
@@ -375,15 +363,6 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
     return progress;
   }
 
-  /**
-   * Set the scale on the current composition. The only cost of this function is re-rendering the
-   * current frame so you may call it frequent to scale something up or down.
-   *
-   * The smaller the animation is, the better the performance will be. You may find that scaling an
-   * animation down then rendering it in a larger ImageView and letting ImageView scale it back up
-   * with a scaleType such as centerInside will yield better performance with little perceivable
-   * quality loss.
-   */
   @SuppressWarnings("WeakerAccess") public void setScale(float scale) {
     this.scale = scale;
     updateBounds();
@@ -525,7 +504,6 @@ public class LottieDrawable extends Drawable implements Drawable.Callback {
       if (layerName != null) {
         hashCode = hashCode * 31 * layerName.hashCode();
       }
-
       if (contentName != null) {
         hashCode = hashCode * 31 * contentName.hashCode();
       }

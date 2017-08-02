@@ -155,7 +155,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
       matrix.preConcat(parentLayers.get(i).transform.getMatrix());
     }
     int alpha = (int)
-        ((parentAlpha / 255f * (float) transform.getOpacity().getValue() / 100f) * 255);
+        ((parentAlpha/ 100f* (float) transform.getOpacity().getValue() ));
     if (!hasMatteOnThisLayer() && !hasMasksOnThisLayer()) {
       matrix.preConcat(transform.getMatrix());
       drawLayer(canvas, matrix, alpha);
