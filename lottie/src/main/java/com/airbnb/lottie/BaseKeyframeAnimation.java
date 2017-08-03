@@ -23,19 +23,9 @@ abstract class BaseKeyframeAnimation<K, A> {
   private float progress = 0f;
 
   @Nullable private Keyframe<K> cachedKeyframe;
-  private float startDelayProgress;
-  private float endProgress;
-  //缓存当前进度value，以免重复计算
-  private A currentValue;
-  private Keyframe<K> firstFrame;
-  private int frameSize=0;
 
   BaseKeyframeAnimation(List<? extends Keyframe<K>> keyframes) {
     this.keyframes = keyframes;
-    startDelayProgress=keyframes.isEmpty() ? 0f : keyframes.get(0).getStartProgress();
-    firstFrame=keyframes.isEmpty()?null:keyframes.get(0);
-    endProgress=keyframes.isEmpty() ? 1f : keyframes.get(keyframes.size() - 1).getEndProgress();
-    frameSize=keyframes.size();
   }
 
   void setIsDiscrete() {
@@ -57,13 +47,11 @@ abstract class BaseKeyframeAnimation<K, A> {
       return;
     }
     this.progress = progress;
-    currentValue=null;
-    getValue();
+
     for (int i = 0; i < listeners.size(); i++) {
       listeners.get(i).onValueChanged();
     }
   }
-
 
   private Keyframe<K> getCurrentKeyframe() {
     if (keyframes.isEmpty()) {
@@ -74,16 +62,14 @@ abstract class BaseKeyframeAnimation<K, A> {
       return cachedKeyframe;
     }
 
-    Keyframe<K> keyframe = firstFrame;
-    if (progress < startDelayProgress) {
+    int i = 0;
+    Keyframe<K> keyframe = keyframes.get(0);
+    if (progress < keyframe.getStartProgress()) {
       cachedKeyframe = keyframe;
       return keyframe;
     }
-    if(firstFrame!=null && firstFrame.containsProgress(progress)){
-      return firstFrame;
-    }
-    int i = 1;
-    while (!keyframe.containsProgress(progress) && i < frameSize) {
+
+    while (!keyframe.containsProgress(progress) && i < keyframes.size()) {
       keyframe = keyframes.get(i);
       i++;
     }
@@ -95,35 +81,33 @@ abstract class BaseKeyframeAnimation<K, A> {
    * This wil be [0, 1] unless the interpolator has overshoot in which case getValue() should be
    * able to handle values outside of that range.
    */
-  private float getCurrentKeyframeProgress(Keyframe<K> keyframe ) {
+  private float getCurrentKeyframeProgress() {
     if (isDiscrete) {
       return 0f;
     }
+
+    Keyframe<K> keyframe = getCurrentKeyframe();
     if (keyframe.isStatic()) {
       return 0f;
     }
     float progressIntoFrame = progress - keyframe.getStartProgress();
-    float keyframeProgress = keyframe.durationProgress;
+    float keyframeProgress = keyframe.getEndProgress() - keyframe.getStartProgress();
     //noinspection ConstantConditions
     return keyframe.interpolator.getInterpolation(progressIntoFrame / keyframeProgress);
   }
 
   @FloatRange(from = 0f, to = 1f)
   private float getStartDelayProgress() {
-    return startDelayProgress;
+    return keyframes.isEmpty() ? 0f : keyframes.get(0).getStartProgress();
   }
 
   @FloatRange(from = 0f, to = 1f)
   private float getEndProgress() {
-    return endProgress;
+    return keyframes.isEmpty() ? 1f : keyframes.get(keyframes.size() - 1).getEndProgress();
   }
 
   public A getValue() {
-    if(currentValue==null) {
-      Keyframe<K> currentFrame = getCurrentKeyframe();
-      currentValue = getValue(currentFrame, getCurrentKeyframeProgress(currentFrame));
-    }
-    return currentValue;
+    return getValue(getCurrentKeyframe(), getCurrentKeyframeProgress());
   }
 
   float getProgress() {

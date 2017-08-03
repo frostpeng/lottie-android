@@ -33,7 +33,7 @@ class Keyframe<T> {
     int size = keyframes.size();
     for (int i = 0; i < size - 1; i++) {
       // In the json, the keyframes only contain their starting frame.
-      keyframes.get(i).setEndFrame(keyframes.get(i + 1).startFrame);
+      keyframes.get(i).endFrame = keyframes.get(i + 1).startFrame;
     }
     Keyframe<?> lastKeyframe = keyframes.get(size - 1);
     if (lastKeyframe.startValue == null) {
@@ -51,8 +51,6 @@ class Keyframe<T> {
   @Nullable final Interpolator interpolator;
   @SuppressWarnings("WeakerAccess") final float startFrame;
   @SuppressWarnings("WeakerAccess") @Nullable Float endFrame;
-  public float durationProgress;
-
 
   private float startProgress = Float.MIN_VALUE;
   private float endProgress = Float.MIN_VALUE;
@@ -64,33 +62,27 @@ class Keyframe<T> {
     this.endValue = endValue;
     this.interpolator = interpolator;
     this.startFrame = startFrame;
-    if (startProgress == Float.MIN_VALUE) {
-      this.startProgress =
-          (startFrame - composition.getStartFrame()) / composition.getDurationFrames();
-    }
-    setEndFrame(endFrame);
-  }
-
-  public void setEndFrame(@Nullable Float endFrame){
-    this.endFrame=endFrame;
-    if (endProgress == Float.MIN_VALUE) {
-      if (endFrame == null) {
-        endProgress = 1f;
-        durationProgress=endProgress-startProgress;
-      } else {
-        startProgress = getStartProgress();
-        float durationFrames = endFrame - startFrame;
-        durationProgress = durationFrames / composition.getDurationFrames();
-        endProgress = startProgress + durationProgress;
-      }
-    }
+    this.endFrame = endFrame;
   }
 
   float getStartProgress() {
+    if (startProgress == Float.MIN_VALUE) {
+      startProgress = (startFrame  - composition.getStartFrame()) / composition.getDurationFrames();
+    }
     return startProgress;
   }
 
   float getEndProgress() {
+    if (endProgress == Float.MIN_VALUE) {
+      if (endFrame == null) {
+        endProgress = 1f;
+      } else {
+        float startProgress = getStartProgress();
+        float durationFrames = endFrame - startFrame;
+        float durationProgress = durationFrames / composition.getDurationFrames();
+        endProgress = startProgress + durationProgress;
+      }
+    }
     return endProgress;
   }
 
@@ -99,7 +91,7 @@ class Keyframe<T> {
   }
 
   boolean containsProgress(@FloatRange(from = 0f, to = 1f) float progress) {
-    return progress >= startProgress && progress <= endProgress;
+    return progress >= getStartProgress() && progress <= getEndProgress();
   }
 
   @Override public String toString() {

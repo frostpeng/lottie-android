@@ -22,8 +22,9 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
   private static final int SAVE_FLAGS = Canvas.CLIP_SAVE_FLAG | Canvas.CLIP_TO_LAYER_SAVE_FLAG |
       Canvas.MATRIX_SAVE_FLAG;
 
+  @Nullable
   static BaseLayer forModel(
-      Layer layerModel, LottieDrawable drawable, LottieComposition composition) {
+    Layer layerModel, LottieDrawable drawable, LottieComposition composition) {
     switch (layerModel.getLayerType()) {
       case Shape:
         return new ShapeLayer(drawable, layerModel);
@@ -42,7 +43,7 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
       default:
         // Do nothing
         Log.w(L.TAG, "Unknown layer type " + layerModel.getLayerType());
-        return new NullLayer(drawable, layerModel);
+        return null;
     }
   }
 
@@ -264,10 +265,10 @@ abstract class BaseLayer implements DrawingContent, BaseKeyframeAnimation.Animat
             maskBoundsRect.set(tempMaskBoundsRect);
           } else {
             maskBoundsRect.set(
-                Math.min(maskBoundsRect.left, tempMaskBoundsRect.left),
-                Math.min(maskBoundsRect.top, tempMaskBoundsRect.top),
-                Math.max(maskBoundsRect.right, tempMaskBoundsRect.right),
-                Math.max(maskBoundsRect.bottom, tempMaskBoundsRect.bottom)
+              Math.min(maskBoundsRect.left, tempMaskBoundsRect.left),
+              Math.min(maskBoundsRect.top, tempMaskBoundsRect.top),
+              Math.max(maskBoundsRect.right, tempMaskBoundsRect.right),
+              Math.max(maskBoundsRect.bottom, tempMaskBoundsRect.bottom)
             );
           }
       }
