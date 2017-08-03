@@ -30,7 +30,6 @@ import java.io.FileNotFoundException;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
-import com.qzone.R;
 
 /**
  * This view will load, deserialize, and display an After Effects animation exported with

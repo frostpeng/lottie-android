@@ -43,6 +43,7 @@ public class LottieComposition {
   private final HashSet<String> warnings = new HashSet<>();
   private final PerformanceTracker performanceTracker = new PerformanceTracker();
   private final Rect bounds;
+  private final long startFrame;
   private final long endFrame;
   private final float frameRate;
   private final float dpScale;
@@ -59,6 +60,7 @@ public class LottieComposition {
     this.endFrame = endFrame;
     this.frameRate = frameRate;
     this.dpScale = dpScale;
+    this.startFrame=startFrame;
     this.durationFrames = endFrame - startFrame;
     this.duration=(long) (durationFrames* 1000.0 /frameRate );;
     this.majorVersion = major;

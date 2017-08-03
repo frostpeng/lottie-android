@@ -51,8 +51,6 @@ class Keyframe<T> {
   @Nullable final Interpolator interpolator;
   @SuppressWarnings("WeakerAccess") final float startFrame;
   @SuppressWarnings("WeakerAccess") @Nullable Float endFrame;
-  private float endProgress;
-  private float startProgress;
   public float durationProgress;
 
 
@@ -80,7 +78,7 @@ class Keyframe<T> {
         endProgress = 1f;
         durationProgress=endProgress-startProgress;
       } else {
-        float startProgress = getStartProgress();
+        startProgress = getStartProgress();
         float durationFrames = endFrame - startFrame;
         durationProgress = durationFrames / composition.getDurationFrames();
         endProgress = startProgress + durationProgress;
